@@ -1,5 +1,6 @@
 import ui.ImageView;
 import ui.View;
+import ui.ViewPool;
 
 var MAX_ZINDEX = 1000000;
 
@@ -16,22 +17,30 @@ var ParallaxView = exports = Class(ui.View, function (supr) {
 		supr(this, 'init', arguments);
 	}
 	
-	this.addParallaxLayer = function (layer, distance) {
+	this.addBackgroundView = function (view) {
+		view.style.width = this.style.width;
+		view.style.height = this.style.height;
+		this.addSubview(view);
+	}
+	
+	this.addLayer = function (layer) {
+		if (!(layer instanceof ParallaxView.Layer)) {
+			layer = new ParallaxView.Layer(layer);
+		}
 		layer._parallaxView = this;
-		layer._distance = distance;
 		this.addSubview(layer);
 		this.layers.push(layer);
 		layer.style.height = this.style.height;
-		layer.style.zIndex = MAX_ZINDEX - distance;
-		layer.repopulate();
+		layer.style.zIndex = MAX_ZINDEX - layer._distance;
+		layer.scrollTo(this._x / layer._distance, this._y / layer._distance);
+		return layer;
 	}
 	
-	this.focus = function (view, dy) {
-		this.scrollTo(view.style.x - 50, dy);
+	this.clear = function () {
+		for (var i = 0; i < this.layers.length; i++) {
+			this.layers[i].clear();
+		}
 	}
-	
-	// this.scrollTo = function (x, y) {
-	// }
 	
 	this.scrollBy = function (x, y, relativeToDistance) {
 		if (x == null) { x = 0; }
@@ -39,13 +48,9 @@ var ParallaxView = exports = Class(ui.View, function (supr) {
 		relativeToDistance = relativeToDistance || 1;
 		x *= relativeToDistance;
 		y *= relativeToDistance;
-
-		this._x += x;
-		this._y += y;
-		for (var i = 0; i < this.layers.length; i++) {
-			var layer = this.layers[i];
-			layer._scrollBy(x / (layer._distance || 1), y / (layer._distance || 1));
-		}
+		
+		this.scrollTo(x != null ? this._x + x : null, 
+					  y != null ? this._y + y : null);
 	}
 
 	this.scrollTo = function (x, y, relativeToDistance) {
@@ -55,32 +60,31 @@ var ParallaxView = exports = Class(ui.View, function (supr) {
 		x *= relativeToDistance;
 		y *= relativeToDistance;
 
-		this.scrollBy(x != null ? x - this._x : null,
-					  y != null ? y - this._y : null);
+		this._x = x;
+		this._y = y;
+		for (var i = 0; i < this.layers.length; i++) {
+			var layer = this.layers[i];
+			layer._scrollTo(x / (layer._distance || 1), y / (layer._distance || 1));
+		}
 	}
 });
 
-import ui.ViewPool;
 
 // A parallax layer has a ran
-exports.ParallaxLayer = Class(ui.View, function (supr) {
+ParallaxView.Layer = Class(ui.View, function (supr) {
 	var defaults = {
-
+		distance: 1
 	};
 	
 	this.init = function (opts) {
 		this._opts = opts = merge(opts, defaults);
 		supr(this, 'init', arguments);
-		
+		this._distance = opts.distance || 1;
 		this.pools = {};		
-		this.populatedRange = [0, 0];
+		this.populatedX = 0;
 		this.setHandleEvents(false, false);
 	}
 
-	this.focus = function (view, y) {
-		this._parallaxView.scrollTo(view.style.x * this._distance - 50, y * this._distance);
-	}
-	
 	this.scrollTo = function (x, y) {
 		this._parallaxView.scrollTo(x, y, this._distance);
 	}
@@ -89,23 +93,33 @@ exports.ParallaxLayer = Class(ui.View, function (supr) {
 		this._parallaxView.scrollBy(dx, dy, this._distance);
 	}
 	
-	this._scrollBy = function (dx, dy) {
-		this.style.x -= dx|0;
-		this.style.y -= dy|0;
+	this._scrollTo = function (x, y) {
+		this.style.x = -x|0;
+		this.style.y = -y|0;
 	
-		this.repopulate();
+		this._populate();
 	}
 	
-	this.repopulate = function () {
-		var start = this.populatedRange[1];
+	this.clear = function () {
+		var subviews = this.getSubviews();
+		while (subviews.length) {
+			this.removeView(subviews.pop());
+		}
+		this.populatedX = -this.style.x;
+		this._populate();
+	}
+	
+	this._populate = function () {
+		var start = this.populatedX;
 		var end = -this.style.x + this.getSuperview().style.width;
 		while (start < end) {
-			start = this.populate(start, end);
-			if (start === undefined) {
+			var width = this.populate(start, end, this);
+			if (!width || isNaN(width)) {
 				break;
 			}
+			start += width;
 		}
-		this.populatedRange[1] = Math.max(start, end);
+		this.populatedX = Math.max(start, end);
 
 		for (var i = 0, children = this.getSubviews(), 
 		     len = children.length; i < len; i++) {
@@ -116,35 +130,47 @@ exports.ParallaxLayer = Class(ui.View, function (supr) {
 		}
 	}
 	
-	this.obtainView = function(ctor, opts) {
+	this.obtainView = function(ctor, group, opts, initCount) {
+		if (opts === undefined && typeof group == 'object') {
+			opts = group;
+			group = "";
+		}
+		var poolKey = ctor.name + group;
+		
 		var pool;
-		if (!(pool = this.pools[ctor.name])) { 
-			pool = this.pools[ctor.name] = new ui.ViewPool({
+		if (!(pool = this.pools[poolKey])) { 
+			pool = this.pools[poolKey] = new ui.ViewPool({
 				ctor: ctor,
 				initOpts: opts,
-				initCount: 15
+				initCount: initCount || 15
 			});
-			console.log("NEW POOL");
 		}
 		var v = pool.obtainView(opts);
+		// hack for imageview:
+		if ((v instanceof ui.ImageView) && 'image' in opts) {
+			v.setImage(opts.image, opts);
+		}
 		v._pool = pool;
 		return v;
 	}
 	
 	this.removeView = function (v) {
 		if (v._pool) {
+			// ui.ViewPool prefers that you don't
+			// actually remove views, for performance reasons.
+			// ViewPool will set v.style.visible to false.
 			v._pool.releaseView(v);
 		} else {
 			v.removeFromSuperview();
 		}
 	}
 	
-	this.populate = function (x1, x2) {
+	this.populate = function (x, width, layer) {
 		if (this._opts.populate) {
-			return this._opts.populate.call(this, x1, x2);
+			return this._opts.populate.call(this, x, width, layer);
 		}
 		// override this and place objects in the view.
-		// if you return a value less than x2, we'll keep
+		// if you return a value less than width, we'll keep
 		// calling populate for you.
 	}
 });

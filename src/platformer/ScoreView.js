@@ -5,13 +5,32 @@ import ui.resource.Image as Image;
 var emptyFunc = function () {};
 
 exports = Class(View, function (supr) {
+	var defaults = {
+		charWidth: 50,
+		charHeight: 70,
+		chars: {
+			'+': 'plus',
+			'-' : 'minus',
+			'%' : 'percent',
+			',' : 'comma',
+			'!' : 'exclamation',
+			'.' : 'period',
+			'?' : 'question'
+		},
+		url: null
+	};
 	this.init = function (opts) {
 		opts.blockEvents = true;
 		opts.canHandleEvents = false;
 		supr(this, 'init', arguments);
+		
+		this._charHeight = opts.charHeight;
+		this._charWidth = opts.charWidth;
 
-		this.setCharacterData(opts.characterData);
-
+		this._charImages = {};
+		this._chars = opts.chars || {};
+		this._url = opts.url;
+		
 		// Text options
 		this.textAlign = opts.textAlign || 'center';
 		this.spacing = opts.spacing || 0;
@@ -24,6 +43,15 @@ exports = Class(View, function (supr) {
 			this.setText(opts.text);
 		}
 	};
+	
+	this.imageForChar = function (c) {
+		if (!this._charImages[c]) {
+			this._charImages[c] = new Image({
+				url: this._url.replace('{}', this._chars[c] || c)
+			});
+		}
+		return this._charImages[c];
+	}
 
 	this.setText = function (text) {
 		text = text + '';
@@ -34,22 +62,10 @@ exports = Class(View, function (supr) {
 		var activeCharacters = this._activeCharacters;
 		var imageViews = this._imageViews;
 
-		var i = 0, data;
-		while (i < text.length) {
+		for (var i = 0; i < text.length; i++) {
 			var character = text.charAt(i);
-			var data = this._chars[character];
-			if (data) {
-				var w = data.width * scale;
-				if (data) {
-					activeCharacters[i] = data;
-					textWidth += w + this.spacing * scale;
-					// Special x offsets to fix text kerning only affect text width if it's first or last char
-					if (data.offset && (i == 0 || i == text.length - 1)) {
-						textWidth += data.offset * scale;
-					}
-				}
-			}
-			i++;
+			activeCharacters[i] = this.imageForChar(character);
+			textWidth += (this._charWidth + this.spacing) * scale;
 		}
 
 		if (textWidth > style.width) {
@@ -67,13 +83,12 @@ exports = Class(View, function (supr) {
 
 		while (text.length > imageViews.length) {
 			var newView = new ImageView({
-				parent: this,
+				superview: this,
 				x: 0,
 				y: 0,
 				width: 1,
 				height: 1,
 				canHandleEvents: false,
-				inLayout: false
 			});
 			newView.needsReflow = emptyFunc;
 			imageViews.push(newView);
@@ -88,24 +103,14 @@ exports = Class(View, function (supr) {
 			var data = activeCharacters[i];
 			var view = imageViews[i];
 			var viewStyle = view.style;
-			var w = data.width * scale;
-
-			// Special x offsets to fix text kerning
-			if (data.offset) {
-				x += data.offset * scale;
-			}
+			var w = this._charWidth * scale;
 
 			viewStyle.x = x;
 			viewStyle.y = y;
 			viewStyle.width = w;
 			viewStyle.height = style.height; // All characters should have the same height
 			viewStyle.visible = true;
-			view.setImage(data.img);
-
-			// Remove special offset
-			if (data.offset) {
-				x -= data.offset * scale;
-			}
+			view.setImage(data);
 
 			x += w + this.spacing * scale;
 		}
@@ -116,16 +121,4 @@ exports = Class(View, function (supr) {
 	};
 
 	this.needsReflow = emptyFunc;
-
-	this.setCharacterData = function (characterData) {
-		this._characterData = characterData;
-		this._charHeight = characterData.height;
-		this._chars = characterData.chars;
-		for (var i in this._chars) {
-			var data = this._chars[i];
-			if (!(data.img instanceof Image)) {
-				data.img = new Image({ url: data.image });
-			}
-		}
-	};
 });
