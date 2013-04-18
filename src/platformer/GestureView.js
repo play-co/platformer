@@ -1,5 +1,18 @@
 import ui.View;
 
+/**
+ * A view that tracks gestures and fires events
+ * when it detects them. You should place this view
+ * at the top of your hierarchy, and handle the following
+ * events as needed:
+ * 
+ * - "Drag": (event with 'duration', 'dx', 'dy', 'cancel()')
+ * - "Swipe": (event with 'duration', 'dx', 'dy')
+ * - "InputStart": (mousedown, triggered by the DevKit)
+ * - "InputSelect": (mouseup, triggered by the DevKit)
+ * 
+ * @class GestureView
+ */
 exports = Class(ui.View, function (supr) {
 	var defaults = {
 		

@@ -10,7 +10,7 @@
 	"supportedOrientations": [
 		"landscape"
 	],
-	"description": "",
+	"description": "A sample platformer game built with the Game Closure DevKit",
 	"icon": "resources/icons/icon512.png",
 	"splash": {
 		"autoHide": true,
