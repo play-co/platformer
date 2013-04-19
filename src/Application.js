@@ -165,7 +165,7 @@ exports = Class(GC.Application, function () {
 		// When the player taps, try to jump
 		this.gestureView.on("InputStart", function (e) {
 			if (!this.isFinished) {
-				if (!this.player.jumping) {
+				if (!this.player.jumping && this.player.velocity.y < 150) {
 					this.player.jumping = true;
 					this.player.velocity.y = -1 * JUMP_VELOCITY;
 					this.player.startAnimation("jump", {
