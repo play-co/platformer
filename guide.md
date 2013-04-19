@@ -1,15 +1,15 @@
-# Ship an awesome Android & iOS game in a few hours using JavaScript
+# Ship an awesome, polished Android & iOS game in a few hours using JavaScript
 
-One of the benefits of building games in JavaScript is that you can
-prototype very quickly. A good game engine will abstract away the hard
-parts, leaving you to focus on the more creative aspects of game
-development. A great game engine will provide that same creative
-flexibility without sacrificing performance.
+The GC DevKit provides a solid, performant foundation for many different types
+of games. You can already build cross-platform  games of any genre incredibly
+quickly using DevKit. At Game Closure, we regularly build new games in a
+day or less.
 
-The GC DevKit provides a solid, performant foundation for many
-different types of games. We wanted to see if we could take it even
-further: What if we narrowed our constraints a bit and built a
-framework on top of DevKit, designed for a specific game genre?
+We wanted to see if we could take it even further: What if we narrowed our
+constraints a bit and built a framework on top of DevKit, designed for a
+specific game genre? Could we reduce the cycle from idea to implementation
+even more, so that developers can not only prototype a game in the span of a
+few hours, but build a fully-polished, shippable game in an afternoon?
 
 We wanted to choose a genre that includes a couple interesting
 technical challenges for game developers. It's hard to build a
