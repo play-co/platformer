@@ -1,4 +1,4 @@
-# Building a Platformer in 500 Lines of Code
+# Ship an awesome Android & iOS game in a few hours using JavaScript
 
 One of the benefits of building games in JavaScript is that you can
 prototype very quickly. A good game engine will abstract away the hard

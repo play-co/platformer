@@ -77,13 +77,13 @@ function setterHelper(obj, args, dx, dy) {
  *    }
  * 
  * You can temporarily enable or disable collision detection on a view
- * without removing it from a group by calling `enableCollisions` and
- * `disableCollisions`. Note that these changes only persist until
- * a view is removed and re-added to the view hierarchy. In most cases,
- * that's what you want: if your player collides with a star, you can
- * call `disableCollisions`, and remove the star from your view. When
- * the same star view comes back (becuase you're using a view pool),
- * it will have collision detection enabled again.
+ * without removing it from a group by calling `setCollisionEnabled`.
+ * Note that these changes only persist until a view is removed and
+ * re-added to the view hierarchy. In most cases, that's what you
+ * want: if your player collides with a star, you can call
+ * `disableCollisions`, and remove the star from your view. When the
+ * same star view comes back (becuase you're using a view pool), it
+ * will have collision detection enabled again.
  * 
  * ## Position Helper Functions
  * 
@@ -104,8 +104,11 @@ function setterHelper(obj, args, dx, dy) {
 var Physics = exports = Class(function () {
 
 	var defaults = {
+		physics: true,
+		collision: true,
 		group: null,
 		groups: [],
+		hitbox: null
 	}
 
 	/**
@@ -117,8 +120,26 @@ var Physics = exports = Class(function () {
 	this.init = function (opts) {
 		opts = merge(opts, defaults);
 		this._collisionGroups = [];
-		this.on('ViewAdded', this._enablePhysics.bind(this));
-		this.on('ViewRemoved', this._disablePhysics.bind(this));
+		this._physicsEnabled = opts.physics;
+		this._collisionEnabled = opts.collision;
+		this.hitbox = opts.hitbox;
+
+		this.on('ViewAdded', function () {
+			allPhysicsViews[this.uid] = this;
+			for (var i = 0; i < this._collisionGroups.length; i++) {
+				addViewToCollisionGroup(this._collisionGroups[i], this);
+			}
+		}.bind(this));
+
+		// Remove refrences when the view disappears so that
+		// we don't retain references which would leak memory
+		this.on('ViewRemoved', function () {
+			delete allPhysicsViews[this.uid];
+			for (var i = 0; i < this._collisionGroups.length; i++) {
+				removeViewFromCollisionGroup(this._collisionGroups[i], this);
+			}
+		}.bind(this));
+		
 		this._updatePhysicsOpts(opts);
 		
 		// Allow position to be used like a point just like
@@ -131,6 +152,13 @@ var Physics = exports = Class(function () {
 		this.velocity = new Point();
 		this.acceleration = new Point();
 		this.prevPosition = new Point(this.position);
+
+		if (this.__root) { // only if the view is on the view hierarchy
+			allPhysicsViews[this.uid] = this;
+			for (var i = 0; i < this._collisionGroups.length; i++) {
+				addViewToCollisionGroup(this._collisionGroups[i], this);
+			}
+		}
 	}
 	
 	//****************************************************************
@@ -279,26 +307,19 @@ var Physics = exports = Class(function () {
 	// Collision
 
 	/**
-	 * Enables collision detection (it's already on by default).
-	 * @method enableCollisions
+	 * Sets collision detection (it's already on by default).
+	 * @method setCollisionEnabled
 	 */
-	this.enableCollisions = function () {
-		if (this.__root) { // only if the view is on the view hierarchy
-			for (var i = 0; i < this._collisionGroups.length; i++) {
-				addViewToCollisionGroup(this._collisionGroups[i], this);
-			}
-		}
+	this.setPhysicsEnabled = function (on) {
+		this._physicsEnabled = on;
 	}
 
 	/**
-	 * Temporarily disables collision detection. This is re-enabled
-	 * when the view is added again to the hierarchy.
-	 * @method disableCollisions
+	 * Sets collision detection (it's already on by default).
+	 * @method setCollisionEnabled
 	 */
-	this.disableCollisions = function () {
-		for (var i = 0; i < this._collisionGroups.length; i++) {
-			removeViewFromCollisionGroup(this._collisionGroups[i], this);
-		}
+	this.setCollisionEnabled = function (on) {
+		this._collisionsEnabled = on;
 	}
 
 	/**
@@ -309,10 +330,18 @@ var Physics = exports = Class(function () {
 	this.setCollisionGroups = function (groups) {
 		if (!groups) { groups = []; }
 		else if (!Array.isArray(groups)) { groups = [groups]; }
-		
-		this._disablePhysics();
+
+		for (var i = 0; i < this._collisionGroups.length; i++) {
+			removeViewFromCollisionGroup(this._collisionGroups[i], this);
+		}
+
 		this._collisionGroups = groups;
-		this._enablePhysics();
+
+		if (this.__root) {
+			for (var i = 0; i < this._collisionGroups.length; i++) {
+				addViewToCollisionGroup(this._collisionGroups[i], this);
+			}
+		}
 	}
 
 	/**
@@ -325,6 +354,18 @@ var Physics = exports = Class(function () {
 		return this._collisionGroups.indexOf(group) != -1;
 	}
 	
+	this._computedHitBox = null; // save it for quick reference
+	this.getHitBox = function () {
+		if (!this._computedHitBox) {
+			this._computedHitBox = {};
+		}
+		this._computedHitBox.x = this.style.x + (this.hitbox ? this.hitbox.x : 0);
+		this._computedHitBox.y = this.style.y + (this.hitbox ? this.hitbox.y : 0);
+		this._computedHitBox.width = (this.hitbox ? this.hitbox.width : this.style.width);
+		this._computedHitBox.height = (this.hitbox ? this.hitbox.height : this.style.height);
+		return this._computedHitBox;
+	}
+	
 	/**
 	 * Returns an array of collisions between this object and all objects in the
 	 * given `group`. This object will always return an array (never null).
@@ -334,11 +375,14 @@ var Physics = exports = Class(function () {
 	 */
 	this.getCollisions = function (group) {
 		var collisions = [];
+		if (!this._collisionsEnabled) {
+			return collisions;
+		}
 		var uidmap = groups[group];
 		if (uidmap) {
 			for (var uid in uidmap) if (uid != this.uid) {
 				var view2 = uidmap[uid];
-				var intersection = intersect.rectAndRect(this.style, view2.style);
+				var intersection = intersect.rectAndRect(this.getHitBox(), view2.getHitBox());
 				if (intersection) {
 					collisions.push({
 						intersection: intersection,
@@ -351,18 +395,6 @@ var Physics = exports = Class(function () {
 	}
 	
 	//****************************************************************
-
-	this._enablePhysics = function () {
-		if (this.__root) { // only if the view is on the view hierarchy
-			this.enableCollisions();
-			allPhysicsViews[this.uid] = this;
-		}
-	}
-
-	this._disablePhysics = function () {
-		this.disableCollisions();
-		delete allPhysicsViews[this.uid];
-	}
 
 	this._updatePhysicsOpts = function (opts) {
 		this.setCollisionGroups(opts.group || opts.groups);
@@ -446,11 +478,13 @@ Physics.tick = function (dt) {
 	}
 	for (var k in allPhysicsViews) {
 		var view = allPhysicsViews[k];
-		view.prevPosition.x = view.position.x;
-		view.prevPosition.y = view.position.y;
-		view.velocity.x += view.acceleration.x * dt;
-		view.velocity.y += view.acceleration.y * dt;
-		view.position.x += view.velocity.x * dt;
-		view.position.y += view.velocity.y * dt;
+		if (view._physicsEnabled) {
+			view.prevPosition.x = view.position.x;
+			view.prevPosition.y = view.position.y;
+			view.velocity.x += view.acceleration.x * dt;
+			view.velocity.y += view.acceleration.y * dt;
+			view.position.x += view.velocity.x * dt;
+			view.position.y += view.velocity.y * dt;
+		}
 	}
 }

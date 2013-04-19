@@ -165,10 +165,12 @@ exports = Class(GC.Application, function () {
 		// When the player taps, try to jump
 		this.gestureView.on("InputStart", function (e) {
 			if (!this.isFinished) {
-				if (!this.player.jumping && this.player.velocity.y < 150) {
-					this.player.jumping = true;
+				if ((this.player.jumpingLevel == 0 && this.player.velocity.y < 150)
+				     || this.player.jumpingLevel == 1) {
+					this.player.jumpingLevel++;
 					this.player.velocity.y = -1 * JUMP_VELOCITY;
-					this.player.startAnimation("jump", {
+					this.player.startAnimation(this.player.jumpingLevel == 1 ? "jump" : "float", {
+						loop: this.player.jumpingLevel == 2,
 						callback: function () {
 							this.player.startAnimation("glider", {loop: true});
 						}.bind(this)
@@ -178,15 +180,15 @@ exports = Class(GC.Application, function () {
 		}.bind(this));
 		
 		this.gestureView.on("InputSelect", function (e) {
-			if (this.isFinished) {
+			if (this.isFinished && this.player.velocity.x <= 0) {
 				// If the game was over, start a new game
 				this.startGame();
 			} else {
 				// When the player lifts their finger
 				// swap out the animation to show that they're
 				// falling faster now
-				if (this.player.jumping) {
-					this.player.startAnimation("float", {
+				if (this.player.jumpingLevel > 0) {
+					this.player.startAnimation("land", {
 						loop: true
 					});
 				}
@@ -234,12 +236,22 @@ exports = Class(GC.Application, function () {
 			autoStart: true,
 		});
 		
+		// The player can double-jump, so the first jump == 1, second jump == 2
+		this.player.jumpingLevel = 1;
+		
 		// This player needs to be able to move with physics.
 		// This function will give the player a bunch of new
 		// functionality like velocity, acceleration, and
 		// a bunch of positioning helper functions.
 		// See the Physics class documentation!
-		Physics.addToView(this.player);
+		Physics.addToView(this.player, {
+			hitbox: {
+				x: 0,
+				y: 20,
+				width: 80,
+				height: 80,
+			}
+		});
 	}
 	
 	// The UI for this game is pretty simple: just a score view.
@@ -304,7 +316,7 @@ exports = Class(GC.Application, function () {
 		// Get a new platform of a random size. (This view comes from
 		// a ViewPool automatically, which improves performance.)
 		var size = util.choice([256, 512, 768, 1024]);
-		var v = layer.obtainView(ui.ImageView, {
+		var platform = layer.obtainView(ui.ImageView, {
 			superview: layer,
 			image: "resources/images/level/platform" + size + ".png",
 			x: x,
@@ -315,7 +327,7 @@ exports = Class(GC.Application, function () {
 
 		// To detect collisions between the player and any platform,
 		// we add Physics to this view with a group of "ground".
-		Physics.addToView(v, {group: "ground"});
+		Physics.addToView(platform, {group: "ground"});
 
 		// In our game, we predefined grid arrangements of stars to display in
 		// starGrids.js. Here, we'll pull out that information and add some views
@@ -323,7 +335,7 @@ exports = Class(GC.Application, function () {
 		var starHeight = util.randInt(50, 200);
 		var starSize = 50;
 		var numStars = size / starSize - 2;
-		var maxPerRow = v.style.width / starSize | 0;
+		var maxPerRow = platform.style.width / starSize | 0;
 		var grid = util.choice(starGrids); // choose a random arrangement of stars
 		var initX = util.randInt(0, Math.max(0, maxPerRow - grid[0].length)) * starSize;
 		
@@ -338,7 +350,7 @@ exports = Class(GC.Application, function () {
 					superview: layer,
 					image: "resources/images/star.png",
 					x: x + initX + gridX * starSize,
-					y: v.style.y - starHeight - starSize * gridY,
+					y: platform.style.y - starHeight - starSize * gridY,
 					anchorX: starSize/2,
 					anchorY: starSize/2,
 					width: starSize,
@@ -360,12 +372,24 @@ exports = Class(GC.Application, function () {
 			spaceBetweenPlatforms = util.randInt(100, 100 + this.t * 20);
 		}
 		
+		// Should we add an enemy?
+		if (Math.random() < 0.5 && this.t > 5 && platform.style.width >= 512) {
+			var enemyBee = layer.obtainView(EnemyBeeView, {
+				superview: layer,
+				x: x + util.randInt(0, platform.style.width - 50),
+				y: platform.style.y - util.choice([100, 300]),
+				width: 50,
+				height: 100,
+			}, {poolSize: 5, group: "bee"});
+		}
+		
+		
 		// Because we populated the view as far as the platform, plus the extra space,
 		// we return the amount of space populated. Then, the ParallaxView knows to only populate
 		// the view starting from the last unpopulated x coordinate. In this case, it'll 
 		// call this function again to populate once we reach the place where we want to 
 		// place the next platform.
-		return v.style.width + spaceBetweenPlatforms | 0;
+		return platform.style.width + spaceBetweenPlatforms | 0;
 
 	}
 
@@ -392,6 +416,11 @@ exports = Class(GC.Application, function () {
 		this.parallaxView.scrollTo(0, 0);
 		this.parallaxView.clear();
 		this.gameLayer.addSubview(this.player);
+		this.player.jumpingLevel = 1; // they start in the air
+		this.player.setCollisionEnabled(true);
+		this.player.startAnimation("land", {
+			loop: true
+		});
 		this.player
 			.setPosition(50, 0)
 			.setVelocity(PLAYER_INITIAL_SPEED, -400)
@@ -470,8 +499,8 @@ exports = Class(GC.Application, function () {
 			// If the player is close to the top of a platform, and they're falling (not jumping up),
 			// we must make them hit the platform.
 			if (this.player.getPrevBottom() <= hit.view.getTop() + 10 && this.player.velocity.y >= 0) {
-				if (this.player.jumping || this.player.rolling) {
-					this.player.jumping = false;
+				if (this.player.jumpingLevel > 0 || this.player.rolling) {
+					this.player.jumpingLevel = 0;
 					this.player.rolling = false;
 					animate(this.player).clear();
 					this.player.setRotation(0);
@@ -480,8 +509,7 @@ exports = Class(GC.Application, function () {
 				// They're currently _colliding_ with the platform; move them up higher so that they
 				// only touch the top of the platform instead
 				this.player.position.y -= hit.intersection.height;
-				// now make them bounce up a little bit
-				this.player.velocity.y = Math.abs(this.player.velocity.y) * -1 * REBOUND_PERCENTAGE;
+				this.player.velocity.y = 0;
 			}
 		}
 
@@ -494,7 +522,7 @@ exports = Class(GC.Application, function () {
 			this.score += SCORE_STAR_VALUE;
 			// remove the star from the physics simulation so that we don't
 			// collide with it any more
-			star.disableCollisions();
+			star.setCollisionEnabled(false);
 			// now animate it away.
 			animate(star).now({
 				scale: 0,
@@ -515,10 +543,68 @@ exports = Class(GC.Application, function () {
 			this.sound.play("star" + util.randInt(1,9));
 		}
 
+		// If they hit an ememy bee, they die.
+		var hits = this.player.getCollisions("bee");
+		for (var i = 0; i < hits.length; i++) {
+			var hit = hits[i];
+			var bee = hit.view;
+			bee.setCollisionEnabled(false);
+			bee.stopAllMovement();
+			bee.velocity.x = this.player.velocity.x;
+			bee.acceleration.y = GRAVITY;
+			bee.die();
+			this.player.setCollisionEnabled(false); // let him fall through the platforms
+			animate(this.player).now({
+				dr: Math.PI * -2
+			}, 2000);
+			this.finishGame();
+		}
+
 		// If the player fell off the bottom of the screen, game over!
 		if (this.player.getY() >= this.gameLayer.style.height) {
 			this.finishGame();
 		}
+	}
+});
+
+
+var EnemyBeeView = new Class([ui.View, Physics], function (supr) {
+	this.init = function(opts) {
+		opts.group = "bee";
+		opts.hitbox = {
+			x: 10,
+			y: 10,
+			width: 30,
+			height: 30,
+		};
+		supr(this, 'init', arguments);
+		Physics.prototype.init.apply(this, arguments);
+		var sprite = this.sprite = new ui.SpriteView({
+			superview: this,
+			x: 0,
+			y: 0,
+			width: 50,
+			height: 50,
+			url: "resources/images/enemies/bee",
+			defaultAnimation: "flying",
+			autoStart: true,
+		});
+		function animateBee() {
+			animate(sprite)
+				.clear()
+				.now({dy: 50}, 400)
+				.then({dy: -50}, 400)
+				.then(animateBee);
+		}
+		animateBee();
+	}
+	
+	this.tick = function () {
+		this.hitbox.y = this.sprite.style.y + 10;
+	}
+	
+	this.die = function() {
+		animate(this.sprite, "rotation").now({r: Math.PI * 1.5}, 1000);
 	}
 });
 
