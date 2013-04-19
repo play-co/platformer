@@ -162,6 +162,8 @@ exports = Class(GC.Application, function () {
 			zIndex: 10000
 		});
 		
+		this._touchedWhenFinished = false;
+
 		// When the player taps, try to jump
 		this.gestureView.on("InputStart", function (e) {
 			if (!this.isFinished) {
@@ -176,11 +178,14 @@ exports = Class(GC.Application, function () {
 						}.bind(this)
 					});
 				}
+			} else {
+				this._touchedWhenFinished = true;
 			}
 		}.bind(this));
 		
 		this.gestureView.on("InputSelect", function (e) {
-			if (this.isFinished && this.player.velocity.x <= 0) {
+			if (this._touchedWhenFinished && this.isFinished) {
+				this._touchedWhenFinished = false;
 				// If the game was over, start a new game
 				this.startGame();
 			} else {
@@ -418,6 +423,7 @@ exports = Class(GC.Application, function () {
 		this.gameLayer.addSubview(this.player);
 		this.player.jumpingLevel = 1; // they start in the air
 		this.player.setCollisionEnabled(true);
+		this.player.style.r = 0; // he rotates when he dies
 		this.player.startAnimation("land", {
 			loop: true
 		});
