@@ -473,7 +473,7 @@ Physics.tick = function (dt) {
 		return;
 	}
 	
-	if (dt > 1) {
+	if (dt > 0) {
 		dt = dt / 1000; // Physics expects seconds, not milliseconds.
 	}
 	for (var k in allPhysicsViews) {
