@@ -275,7 +275,9 @@ ParallaxView.Layer = Class(ui.View, function (supr) {
 			});
 		}
 		
-		var v = pool.obtainView(viewOpts);
+		var v = pool.obtainView();
+		v.updateOpts(viewOpts);
+		v.style.visible = true;
 		
 		// hack for imageview:
 		if ((v instanceof ui.ImageView) && 'image' in viewOpts) {
