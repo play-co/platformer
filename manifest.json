@@ -10,6 +10,9 @@
 	"supportedOrientations": [
 		"landscape"
 	],
+	"addons": [
+		"ouya"
+	],
 	"description": "A sample platformer game built with the Game Closure DevKit",
 	"icon": "resources/icons/icon512.png",
 	"splash": {
@@ -43,5 +46,5 @@
 			"renderGloss": true
 		}
 	},
-	"sdkVersion": "release-0.1.19"
+	"sdkVersion": "release-0.1.31"
 }

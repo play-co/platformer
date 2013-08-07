@@ -18,6 +18,8 @@ import src.platformer.util as util;
 
 import resources.starGrids as starGrids;
 
+import plugins.ouya.ouya as ouya;
+
 
 exports = Class(GC.Application, function () {
 	
@@ -152,6 +154,24 @@ exports = Class(GC.Application, function () {
 		});
 	}
 
+	this.onJump = function() {
+		if (!this.isFinished) {
+			if ((this.player.jumpingLevel == 0 && this.player.velocity.y < 150)
+					|| this.player.jumpingLevel == 1) {
+						this.player.jumpingLevel++;
+						this.player.velocity.y = -1 * JUMP_VELOCITY;
+						this.player.startAnimation(this.player.jumpingLevel == 1 ? "jump" : "float", {
+							loop: this.player.jumpingLevel == 2,
+							callback: function () {
+								this.player.startAnimation("glider", {loop: true});
+							}.bind(this)
+						});
+					}
+		} else {
+			this._touchedWhenFinished = true;
+		}
+	}
+
 	// We'll handle a couple gestures: swipe down, and tap-and-hold,
 	// using a GestureView.
 	this.setupInput = function () {
@@ -164,25 +184,34 @@ exports = Class(GC.Application, function () {
 		
 		this._touchedWhenFinished = false;
 
-		// When the player taps, try to jump
-		this.gestureView.on("InputStart", function (e) {
-			if (!this.isFinished) {
-				if ((this.player.jumpingLevel == 0 && this.player.velocity.y < 150)
-				     || this.player.jumpingLevel == 1) {
-					this.player.jumpingLevel++;
-					this.player.velocity.y = -1 * JUMP_VELOCITY;
-					this.player.startAnimation(this.player.jumpingLevel == 1 ? "jump" : "float", {
-						loop: this.player.jumpingLevel == 2,
-						callback: function () {
-							this.player.startAnimation("glider", {loop: true});
-						}.bind(this)
-					});
+		ouya.onDigitalInput = function(evt) {
+			logger.log("CAT: DIGITAL", JSON.stringify(evt));
+			if (evt.action == 1) {
+				if (evt.code == ouya.BUTTON.O) {
+					this.onJump();
 				}
-			} else {
-				this._touchedWhenFinished = true;
 			}
-		}.bind(this));
-		
+		}.bind(this);
+
+		ouya.onAnalogInput = function(evt) {
+			logger.log("CAT: ANALOG", JSON.stringify(evt));
+			var x = evt.lsx, y = evt.lsy;
+			if (x * x + y * y > 0.5 * 0.5) {
+				// swipe down
+				if (!this.player.rolling) {
+					this.player.rolling = true;
+					this.player.velocity.y = ROLL_VELOCITY;
+					this.player.startAnimation("roll", {
+						loop: true
+					});
+					animate(this.player).now({r: Math.PI * 2}, 500, animate.linear);
+				}
+			}
+		}.bind(this);
+
+		// When the player taps, try to jump
+		this.gestureView.on("InputStart", this.onJump.bind(this));
+
 		this.gestureView.on("InputSelect", function (e) {
 			if (this._touchedWhenFinished && this.isFinished) {
 				this._touchedWhenFinished = false;
