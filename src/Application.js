@@ -25,7 +25,7 @@ exports = Class(GC.Application, function () {
 	
 	// Game constants, for easy tweaking:
 	const GRAVITY = 1400;
-	const HOLD_GRAVITY = GRAVITY / 2;
+	const HOLD_GRAVITY = GRAVITY / 3;
 	const JUMP_VELOCITY = 500;
 	const ROLL_VELOCITY = 1000;
 	const PLAYER_INITIAL_SPEED = 400;
