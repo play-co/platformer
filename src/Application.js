@@ -202,7 +202,6 @@ exports = Class(GC.Application, function () {
 		this._touchedWhenFinished = false;
 
 		ouya.onDigitalInput = function(evt) {
-			logger.log("CAT: DIGITAL", JSON.stringify(evt));
 			if (evt.code == ouya.BUTTON.O && this.lastAction != evt.action) {
 				this.lastAction = evt.action;
 				if (evt.action == ouya.ACTION.DOWN) {
@@ -214,7 +213,6 @@ exports = Class(GC.Application, function () {
 		}.bind(this);
 
 		ouya.onAnalogInput = function(evt) {
-			logger.log("CAT: ANALOG", JSON.stringify(evt));
 			var x = evt.lsx, y = evt.lsy;
 			if (x * x + y * y > 0.5 * 0.5) {
 				// swipe down
