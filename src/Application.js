@@ -201,11 +201,10 @@ exports = Class(GC.Application, function () {
 		
 		this._touchedWhenFinished = false;
 
-		var lastAction;
 		ouya.onDigitalInput = function(evt) {
 			logger.log("CAT: DIGITAL", JSON.stringify(evt));
-			if (evt.code == ouya.BUTTON.O && lastAction != evt.action) {
-				lastAction = evt.action;
+			if (evt.code == ouya.BUTTON.O && this.lastAction != evt.action) {
+				this.lastAction = evt.action;
 				if (evt.action == ouya.ACTION.DOWN) {
 					this.onJump();
 				} else { // key up
@@ -515,7 +514,7 @@ exports = Class(GC.Application, function () {
 		} else {
 			// During the game, give the player acceleration depending on whether or not they're
 			// dragging on the screen:
-			if (this.gestureView.isPressed()) {
+			if (this.gestureView.isPressed() || (this.lastAction == ouya.ACTION.DOWN)) {
 				this.player.acceleration.y = HOLD_GRAVITY;
 			} else {
 				this.player.acceleration.y = GRAVITY;
