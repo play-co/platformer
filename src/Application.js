@@ -18,8 +18,6 @@ import src.platformer.util as util;
 
 import resources.starGrids as starGrids;
 
-import plugins.ouya.ouya as ouya;
-
 
 exports = Class(GC.Application, function () {
 	
@@ -200,32 +198,6 @@ exports = Class(GC.Application, function () {
 		});
 		
 		this._touchedWhenFinished = false;
-
-		ouya.onDigitalInput = function(evt) {
-			if (evt.code == ouya.BUTTON.O && this.lastAction != evt.action) {
-				this.lastAction = evt.action;
-				if (evt.action == ouya.ACTION.DOWN) {
-					this.onJump();
-				} else { // key up
-					this.onJumpDone();
-				}
-			}
-		}.bind(this);
-
-		ouya.onAnalogInput = function(evt) {
-			var x = evt.lsx, y = evt.lsy;
-			if (x * x + y * y > 0.5 * 0.5) {
-				// swipe down
-				if (!this.player.rolling) {
-					this.player.rolling = true;
-					this.player.velocity.y = ROLL_VELOCITY;
-					this.player.startAnimation("roll", {
-						loop: true
-					});
-					animate(this.player).now({r: Math.PI * 2}, 500, animate.linear);
-				}
-			}
-		}.bind(this);
 
 		// When the player taps, try to jump
 		this.gestureView.on("InputStart", this.onJump.bind(this));
@@ -512,7 +484,7 @@ exports = Class(GC.Application, function () {
 		} else {
 			// During the game, give the player acceleration depending on whether or not they're
 			// dragging on the screen:
-			if (this.gestureView.isPressed() || (this.lastAction == ouya.ACTION.DOWN)) {
+			if (this.gestureView.isPressed()) {
 				this.player.acceleration.y = HOLD_GRAVITY;
 			} else {
 				this.player.acceleration.y = GRAVITY;
