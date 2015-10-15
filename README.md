@@ -10,7 +10,7 @@ installation instructions.
 ##Quick Start:
 
 Clone this game:
-`git clone git@github.com/gameclosure/platformer`
+`git clone git://github.com/gameclosure/platformer`
 
 Change into the game directory:
 `cd platformer`
